@@ -1,0 +1,94 @@
+
+        private IEnumerator DoDownload(string url)
+        {
+            //先下载到桌面
+            string path;
+            path = @"F:\" + _localPath;
+#if UNITY_ANDROID && !UNITY_EDITOR
+            path = Application.persistentDataPath+ _localPath;
+#endif         
+            yield return new WaitForEndOfFrame();
+            WWW www = new WWW(url);
+            Transform updatepanel = null;
+            while (!updatepanel)
+            {
+                updatepanel = FindObjectOfType<AndroidUpdatePanel>()?.transform;
+                yield return null;
+            }
+            var text = updatepanel.Find("Root/Text").GetComponent<Text>();
+            var progress = updatepanel.Find("Root/progress").GetComponent<Text>();
+            text.text += "\n等待www消息";
+            if (File.Exists(path)) File.Delete(path);//删除本地老资源
+            while (!www.isDone)
+            {
+                progress.text = "进度:" + www.progress * 100 + "%";
+                yield return null;
+            }
+            yield return www;
+            if (www.isDone)
+            {
+                text.text += "\nwww消息完成";
+                try
+                {
+                    File.WriteAllBytes(path, www.bytes);
+                    text.text += "\n写入apk文件成功，文件路径:" + path;
+                }
+                catch (Exception e)
+                {
+                    text.text += "\n写入apk文件报错" + e.Message;
+                }
+#if UNITY_EDITOR
+                //下载完成
+                System.Diagnostics.Process.Start(Application.persistentDataPath);
+#endif
+#if UNITY_ANDROID
+                StartCoroutine(InstallApk1(path));
+#endif
+                text.text += "\napk下载完成";
+            }
+        }
+
+        /// <summary>
+        /// 安装下载好的 apk 路径(自己)
+        /// </summary>
+        /// <param name="apkPath"></param>
+        /// <returns></returns>
+        IEnumerator InstallApk1(string apkPath)
+        {
+            var updatepanel = FindObjectOfType<AndroidUpdatePanel>().transform;
+            var text = updatepanel.Find("Root/Text").GetComponent<Text>();
+            AndroidJavaObject context = new AndroidJavaClass("com.unity3d.player.UnityPlayer").GetStatic<AndroidJavaObject>("currentActivity");
+            AndroidJavaObject androidJavaObject = new AndroidJavaObject("com.sindrax.ProfessionDiscovery_client.homeapp.MainActivity");
+            text.text += "\nandroidJavaObject == null:" + (androidJavaObject == null);
+            if (androidJavaObject == null) yield break;
+            androidJavaObject.Call("InstallApk", context,apkPath);
+            text.text += "\n从路径:" + apkPath + "安装文件";
+            yield return 0;
+        }
+
+        /// <summary>
+        /// 安装下载好的 apk 路径(模仿)
+        /// </summary>
+        /// <param name="apkPath"></param>
+        /// <returns></returns>
+        IEnumerator InstallApk2(string apkPath)
+        {
+            var updatepanel = FindObjectOfType<AndroidUpdatePanel>().transform;
+            var text = updatepanel.Find("Root/Text").GetComponent<Text>();
+            AndroidJavaObject context = new AndroidJavaClass("com.unity3d.player.UnityPlayer").GetStatic<AndroidJavaObject>("currentActivity");
+            AndroidJavaObject androidJavaObject = new AndroidJavaObject("com.sindrax.ProfessionDiscovery_client.homeapp.MainActivity");
+            text.text += "\nandroidJavaObject == null:" + (androidJavaObject == null);
+            if (androidJavaObject == null) yield break;
+           var success= androidJavaObject.Call<bool>("InstallApk",apkPath);
+            if (success)
+            {
+                text.text += "\n从路径:" + apkPath + "安装文件,模仿成功";
+
+            }
+            else
+            {
+                text.text += "安装文件,模仿失败，调用自身方法";
+                StartCoroutine(InstallApk1(apkPath));
+            }
+            yield return 0;
+        }
